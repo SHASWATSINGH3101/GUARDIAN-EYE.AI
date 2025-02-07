@@ -8,7 +8,9 @@ from threading import Thread
 import numpy as np
 from collections import deque
 from typing import List, Dict
-from app.twilio_call import make_emergency_call  # Import Twilio call function
+from app.millis_call import make_emergency_call  # Import Twilio call function
+
+
 
 # ------------------------
 # Hyperparameters / Configurations
@@ -22,8 +24,8 @@ OUTPUT_DIR = "X:\\VS_CODE\\_HACKATHON\\datasets\\Real Life Violence Dataset\\out
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Telegram credentials
-TOKEN = ""
-CHAT_ID = ""
+TOKEN = "7875405991:AAGfgB6i1PJWPSBnAZ8VM--mEQ4atM4pRFA"
+CHAT_ID =  "1284776332"
 
 # Severity assessment configuration
 SEVERITY_WINDOW = 30  # Time window in seconds for severity assessment
@@ -178,6 +180,7 @@ def main():
                     )
                     Thread(target=send_telegram_video, args=(saved_path, message)).start()
                     Thread(target=make_emergency_call).start()
+
 
             # Display severity information on the frame
             cv2.putText(frame, f"Severity: {severity['level'].upper()} ({severity['count']} detections)", 
