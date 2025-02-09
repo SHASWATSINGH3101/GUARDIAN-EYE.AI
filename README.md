@@ -118,7 +118,7 @@ We welcome contributions! If you'd like to improve Guardian-Eye.AI, follow these
 ---
 
 ## License
-This project is licensed under the **MIT License**. Feel free to modify and distribute!
+This project is licensed under the **MIT License**.
 
 ---
 
