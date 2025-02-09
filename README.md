@@ -37,7 +37,7 @@ Ensure you have the following installed:
 
 ### **1️⃣ Clone the Repository**
 ```bash
-git clone https://github.com/your-repo/guardian-eye.ai.git
+git clone https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI.git
 cd guardian-eye.ai
 ```
 
