@@ -50,6 +50,9 @@ TWILIO_AUTH_TOKEN=your_auth_token
 TWILIO_PHONE_NUMBER=your_twilio_number
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
+MILLIS_API_KEY = your Api key
+MILLIS_AGENT_ID = your agent ID
+TO_PHONE_NUMBER = your emergency number
 ```
 
 ### **5️⃣ Run the Application**
