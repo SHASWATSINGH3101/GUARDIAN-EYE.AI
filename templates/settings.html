@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Settings Panel</h2>
+<form action="/update_settings" method="post">
+  <div>
+    <label for="alert_threshold">Alert Threshold (number of detections):</label>
+    <input type="number" id="alert_threshold" name="alert_threshold" value="{{ settings.alert_threshold }}" required>
+  </div>
+  <div>
+    <label for="min_confidence_threshold">Minimum Confidence Threshold (e.g., 0.70 for 70%):</label>
+    <input type="number" step="0.01" id="min_confidence_threshold" name="min_confidence_threshold" value="{{ settings.min_confidence_threshold }}" required>
+  </div>
+  <div>
+    <label for="alert_interval">Alert Interval (seconds):</label>
+    <input type="number" id="alert_interval" name="alert_interval" value="{{ settings.alert_interval }}" required>
+  </div>
+  <div>
+    <label for="emergency_contact">Emergency Contact:</label>
+    <input type="text" id="emergency_contact" name="emergency_contact" value="{{ settings.emergency_contact }}" required>
+  </div>
+  <div>
+    <label for="telegram_chat_id">Telegram Chat ID:</label>
+    <input type="text" id="telegram_chat_id" name="telegram_chat_id" value="{{ settings.telegram_chat_id }}" required>
+  </div>
+  <button type="submit">Save Settings</button>
+</form>
+{% endblock %}
