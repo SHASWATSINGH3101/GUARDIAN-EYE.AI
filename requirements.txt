@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+opencv-python
+ultralytics
+numpy
+jinja2
+requests
+twilio
+aiohttp
+python-dotenv
+pydantic
