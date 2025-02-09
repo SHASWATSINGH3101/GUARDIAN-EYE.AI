@@ -1,6 +1,7 @@
 import os
 import cv2
 import time
+import torch
 from collections import deque
 from datetime import datetime
 from threading import Thread
@@ -24,7 +25,9 @@ from app.detection import (
     BUFFER_SECONDS,
     SEVERITY_WINDOW,
 )
-# (Your detection.py already makes sure OUTPUT_DIR exists.)
+from app.config import BUFFER_SCALE_FACTOR  # New: Import the downscale factor
+
+# Ensure the output directory exists.
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --------------------------------------------------
@@ -32,7 +35,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # --------------------------------------------------
 
 # This dictionary holds data for the status panel.
-# Note the new "announcement" field.
 detection_status = {
     "level": "NONE",
     "count": 0,
@@ -47,9 +49,9 @@ incident_history = []
 
 # Settings that you can adjust via the UI.
 app_settings = {
-    "alert_threshold": 3,          # Minimum number of detections required to trigger an alert.
-    "min_confidence_threshold": 0.70,  # Minimum confidence (as a fraction) for a detection to count.
-    "alert_interval": 5,           # Minimum seconds between successive alerts.
+    "alert_threshold": 3,             # Minimum number of detections required to trigger an alert.
+    "min_confidence_threshold": 0.70,   # Minimum confidence (as a fraction) for a detection to count.
+    "alert_interval": 5,              # Minimum seconds between successive alerts.
     "emergency_contact": "+919140529926",
     "telegram_chat_id": "1284776332"
 }
@@ -58,7 +60,9 @@ app_settings = {
 last_alert_time = 0
 
 # Load your YOLO model.
+device = "cuda" if torch.cuda.is_available() else "cpu"
 model = YOLO(MODEL_PATH)
+model.to(device)
 
 # --------------------------------------------------
 # FastAPI App Setup
@@ -95,10 +99,12 @@ def detection_frame_generator():
             print("Error: Cannot read frame.")
             break
 
-        # Add current frame to the buffer.
-        frame_buffer.append(frame.copy())
+        # --- Frame Buffer Optimization ---
+        # Downscale the frame before buffering to reduce memory usage.
+        scaled_frame = cv2.resize(frame, (0, 0), fx=BUFFER_SCALE_FACTOR, fy=BUFFER_SCALE_FACTOR)
+        frame_buffer.append(scaled_frame)
 
-        # Run YOLO detection on the current frame.
+        # Run YOLO detection on the full-resolution frame.
         results = model(frame)
         current_time = time.time()
         violence_detected = False
@@ -211,6 +217,8 @@ def settings(request: Request):
     """Settings panel page to adjust alert thresholds, contact info, etc."""
     return templates.TemplateResponse("settings.html", {"request": request, "settings": app_settings})
 
+import re  # Import for regex validations
+
 @app.post("/update_settings")
 async def update_settings(
     alert_threshold: int = Form(...),
@@ -219,6 +227,27 @@ async def update_settings(
     emergency_contact: str = Form(...),
     telegram_chat_id: str = Form(...)
 ):
+    # Validate alert_threshold: must be at least 1.
+    if alert_threshold < 1:
+        return HTMLResponse("Alert threshold must be at least 1.", status_code=400)
+        
+    # Validate min_confidence_threshold: should be between 0 (exclusive) and 1 (inclusive).
+    if not (0 < min_confidence_threshold <= 1):
+        return HTMLResponse("Minimum confidence threshold must be between 0 and 1.", status_code=400)
+        
+    # Validate alert_interval: must be at least 1 second.
+    if alert_interval < 1:
+        return HTMLResponse("Alert interval must be at least 1 second.", status_code=400)
+        
+    # Validate emergency_contact: allow an optional '+' followed by 10-15 digits.
+    if not re.match(r'^\+?\d{10,15}$', emergency_contact):
+        return HTMLResponse("Emergency contact must be a valid phone number (10-15 digits, optionally with '+').", status_code=400)
+        
+    # Validate telegram_chat_id: should be numeric.
+    if not telegram_chat_id.isdigit():
+        return HTMLResponse("Telegram chat ID must be numeric.", status_code=400)
+
+    # If all validations pass, update the settings.
     app_settings["alert_threshold"] = alert_threshold
     app_settings["min_confidence_threshold"] = min_confidence_threshold
     app_settings["alert_interval"] = alert_interval

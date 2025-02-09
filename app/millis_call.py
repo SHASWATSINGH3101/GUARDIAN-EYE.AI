@@ -14,17 +14,16 @@ def make_emergency_call(metadata):
             "Authorization": MILLIS_API_KEY
         }
         
-        # Include dynamic metadata (Fallback to defaults if missing)
+        # Include dynamic metadata (Fallback to defaults if missing) and add a static location.
         call_metadata = {
             "emergency": "violence_detected",
             "date_of_incident": metadata.get("date_of_incident", "Unknown"),
             "time_of_incident": metadata.get("time_of_incident", "Unknown"),
             "severity_level": metadata.get("severity_level", "unknown"),
             "detections": metadata.get("detections", 0),
-            "confidence": metadata.get("confidence", 0.0)
+            "confidence": metadata.get("confidence", 0.0),
+            "location": "Lucknow, Uttar pradesh"  # Static location added
         }
-
-
         
         data = {
             "from_phone": FROM_PHONE_NUMBER,
@@ -39,4 +38,3 @@ def make_emergency_call(metadata):
         print(f"Emergency call initiated successfully: {response.json()}")
     except requests.exceptions.RequestException as e:
         print(f"Error initiating emergency call: {e}")
-
