@@ -1,7 +1,6 @@
-![image (3)](https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI/blob/main/assets/oie_jpg.png)
-
-
 # GUARDIAN-EYE.AI
+
+![Guardian-Eye.AI](https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI/blob/main/assets/oie_jpg.png)
 
 ## Overview
 **Guardian-Eye.AI** is an AI-powered surveillance system designed to enhance public safety by detecting violent activities in real-time. Using **computer vision and deep learning**, this system integrates with existing surveillance infrastructure to identify threats, send alerts, and enable **rapid response** to critical incidents.
@@ -14,6 +13,17 @@
 ✅ **Automated Alerts** – Sends **real-time alerts via Telegram & emergency calls (Millis AI/Twilio)**.  
 ✅ **Configurable Settings** – Users can **adjust alert thresholds, detection confidence, and contact details**.  
 ✅ **Web Dashboard (HTMX + FastAPI)** – Provides a responsive UI with **live status updates**.  
+
+---
+
+## Services Used
+🔹 **YOLO (Ultralytics)** – For real-time object detection and violence recognition.  
+🔹 **FastAPI** – Backend framework for handling requests and responses.  
+🔹 **HTMX** – Enables dynamic UI updates without requiring a full page reload.  
+🔹 **OpenCV** – Processes video frames for real-time analysis.  
+🔹 **Twilio** – Sends emergency phone alerts in case of detected violence.  
+🔹 **Telegram API** – Sends real-time alerts to predefined chat groups.  
+🔹 **Millis AI** – Handles AI-based emergency call automation.  
 
 ---
 
@@ -114,6 +124,4 @@ This project is licensed under the **MIT License**. Feel free to modify and dist
 
 ## Contact
 For any inquiries or support, reach out via:
-📧 Email: your.email@example.com  
-💬 Telegram: @yourhandle  
-
+💬 Discord: shaswat_singh. 
