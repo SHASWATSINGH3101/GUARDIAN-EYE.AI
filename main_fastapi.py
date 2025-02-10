@@ -52,8 +52,8 @@ app_settings = {
     "alert_threshold": 3,             # Minimum number of detections required to trigger an alert.
     "min_confidence_threshold": 0.70,   # Minimum confidence (as a fraction) for a detection to count.
     "alert_interval": 5,              # Minimum seconds between successive alerts.
-    "emergency_contact": "+919140529926",
-    "telegram_chat_id": "1284776332"
+    "emergency_contact": "",
+    "telegram_chat_id": ""
 }
 
 # Variable to track when the last alert was sent.

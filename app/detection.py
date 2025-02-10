@@ -24,12 +24,12 @@ OUTPUT_DIR = "X:\\VS_CODE\\_HACKATHON\\datasets\\Real Life Violence Dataset\\out
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Telegram credentials
-TOKEN = "7875405991:AAGfgB6i1PJWPSBnAZ8VM--mEQ4atM4pRFA"
-CHAT_ID = "1284776332"
+TOKEN = ""
+CHAT_ID = ""
 
 # Severity assessment configuration
 SEVERITY_WINDOW = 30  # Time window in seconds for severity assessment
-SEVERITY_THRESHOLDS = {'low': 1, 'medium': 2, 'high': 3}
+SEVERITY_THRESHOLDS = {'low': 10, 'medium': 20, 'high': 30}
 
 # Video buffer configuration (seconds before and after the event)
 BUFFER_SECONDS = 5
