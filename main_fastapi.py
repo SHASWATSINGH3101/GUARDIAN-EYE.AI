@@ -1,180 +1,212 @@
+# main_fastapi.py
+
 import os
 import cv2
 import time
-import torch
-from collections import deque
 from datetime import datetime
-from threading import Thread
+from collections import deque
+from threading import Thread, Lock
+import logging
 
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
-from ultralytics import YOLO
-
-# Import functions and classes from your code base.
 from app.detection import (
+    run_all_models,
+    process_alerts,       # Accepts an extra parameter: trigger_call (bool)
+    process_review_alert,
     save_video_clip,
-    process_alerts,
-    SeverityTracker,
-    # These variables are defined in your detection.py:
-    MODEL_PATH,
-    OUTPUT_DIR,
-    CALL_INTERVAL,
     BUFFER_SECONDS,
-    SEVERITY_WINDOW,
+    SeverityTracker      # Sliding window tracker for severity calculation
 )
-from app.config import BUFFER_SCALE_FACTOR  # New: Import the downscale factor
 
-# Ensure the output directory exists.
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
 # --------------------------------------------------
-# Global Variables & Settings
+# Global Variables & Settings with Locks for Thread Safety
 # --------------------------------------------------
-
-# This dictionary holds data for the status panel.
 detection_status = {
     "level": "NONE",
-    "count": 0,
-    "avg_confidence": 0.0,
+    "max_confidence": 0.0,
+    "detections": 0,
     "last_update": "",
     "alert": "",
-    "announcement": ""
+    "logs": []  # Stores recent log entries
 }
+detection_status_lock = Lock()
 
-# Incident history – each alert record will be appended here.
 incident_history = []
+incident_history_lock = Lock()
 
-# Settings that you can adjust via the UI.
 app_settings = {
-    "alert_threshold": 3,             # Minimum number of detections required to trigger an alert.
-    "min_confidence_threshold": 0.70,   # Minimum confidence (as a fraction) for a detection to count.
-    "alert_interval": 5,              # Minimum seconds between successive alerts.
-    "emergency_contact": "",
-    "telegram_chat_id": ""
+    "video_save_path": "output",  # Directory where video clips are stored
+    "telegram_alert_interval": 10,        # Minimum seconds between successive Telegram alerts
+    "emergency_call_interval": 30         # Minimum seconds between successive emergency calls
 }
 
-# Variable to track when the last alert was sent.
-last_alert_time = 0
+last_telegram_alert_time = 0
+last_emergency_call_time = 0
 
-# Load your YOLO model.
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = YOLO(MODEL_PATH)
-model.to(device)
-
-# --------------------------------------------------
-# FastAPI App Setup
-# --------------------------------------------------
+os.makedirs(app_settings["video_save_path"], exist_ok=True)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+# Instantiate a global severity tracker with a sliding window (in seconds)
+severity_tracker = SeverityTracker(window_size=5)
+
 # --------------------------------------------------
-# Detection Frame Generator (UI Integration)
+# Detection Frame Generator with Thread-Safe Updates
 # --------------------------------------------------
 def detection_frame_generator():
-    """
-    This generator continuously captures frames from the webcam,
-    runs your YOLO detection (with your actual detection logic),
-    overlays bounding boxes, status info, and announcement messages,
-    and yields JPEG-encoded frames.
-    """
-    global last_alert_time
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # Adjust the flag if needed.
+    global last_telegram_alert_time, last_emergency_call_time, detection_status, incident_history, severity_tracker
+
+    # Use default camera capture for cross-platform compatibility
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("Error: Cannot access the webcam.")
+        logging.error("Error: Cannot access the webcam.")
         return
 
-    # Determine FPS and set up a frame buffer.
     fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
+    # Buffer for saving video clips when an alert is triggered
     frame_buffer = deque(maxlen=fps * (BUFFER_SECONDS * 2))
-    severity_tracker = SeverityTracker(SEVERITY_WINDOW)
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-            print("Error: Cannot read frame.")
+            logging.error("Error: Cannot read frame.")
             break
 
-        # --- Frame Buffer Optimization ---
-        # Downscale the frame before buffering to reduce memory usage.
-        scaled_frame = cv2.resize(frame, (0, 0), fx=BUFFER_SCALE_FACTOR, fy=BUFFER_SCALE_FACTOR)
+        scaled_frame = frame.copy()
         frame_buffer.append(scaled_frame)
 
-        # Run YOLO detection on the full-resolution frame.
-        results = model(frame)
         current_time = time.time()
-        violence_detected = False
 
-        # Process detections.
-        for r in results:
-            for box in r.boxes:
-                conf = box.conf.cpu().item()  # e.g., 0.85
-                cls = box.cls.cpu().item()    # assuming class 1 indicates violence
-                if cls == 1 and conf > app_settings["min_confidence_threshold"]:
-                    violence_detected = True
-                    severity_tracker.add_detection(current_time, conf)
-                    x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        # Run all models concurrently on the current frame
+        model_results = run_all_models(frame)
+        model1_results = model_results.get("model1", [])
 
-        # Retrieve the current severity information.
-        severity = severity_tracker.get_severity()  # returns a dict with keys: level, count, avg_confidence
-        detection_status["level"] = severity["level"].upper()
-        detection_status["count"] = severity["count"]
-        detection_status["avg_confidence"] = round(severity["avg_confidence"], 2)
-        detection_status["last_update"] = time.strftime("%H:%M:%S")
+        # Update the severity tracker with detections
+        for det in model1_results:
+            severity_tracker.add_detection(current_time, det["confidence"])
 
-        # Trigger an alert if conditions are met.
-        if (violence_detected and 
-            severity["count"] >= app_settings["alert_threshold"] and 
-            (current_time - last_alert_time) >= app_settings["alert_interval"]):
-            
-            last_alert_time = current_time
-            video_path = os.path.join(OUTPUT_DIR, f"violent_clip_{int(current_time)}.mp4")
-            if (saved_path := save_video_clip(frame_buffer, video_path, fps)):
+        severity_info = severity_tracker.get_severity()
+        severity = severity_info["level"]
+        detection_count = severity_info["count"]
+        max_conf = severity_info["max_confidence"]
+
+        # Update detection_status safely
+        with detection_status_lock:
+            detection_status["level"] = severity
+            detection_status["max_confidence"] = round(max_conf, 2)
+            detection_status["detections"] = detection_count
+            detection_status["last_update"] = time.strftime("%H:%M:%S")
+
+        # Draw bounding boxes on the frame for model1 detections
+        for det in model1_results:
+            x1, y1, x2, y2 = det["box"]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
+        overlay_text = (
+            f"Severity: {severity} | "
+            f"Confidence: {round(max_conf,2)} | "
+            f"Detections: {detection_count} | "
+            f"Last Update: {time.strftime('%H:%M:%S')}"
+        )
+        cv2.putText(frame, overlay_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+        # Alert triggering logic with rate limiting and thread-safe updates
+        if severity == "HIGH":
+            telegram_allowed = (current_time - last_telegram_alert_time) >= app_settings["telegram_alert_interval"]
+            call_allowed = (current_time - last_emergency_call_time) >= app_settings["emergency_call_interval"]
+            if telegram_allowed or call_allowed:
+                video_filename = f"violent_clip_{int(current_time)}.mp4"
+                video_path = os.path.join(app_settings["video_save_path"], video_filename)
+                saved_path = save_video_clip(frame_buffer, video_path, fps)
                 current_dt = datetime.now()
-                message = (
+                base_message = (
                     f"🚨 Violent Activity Detected!\n"
                     f"Date: {current_dt.strftime('%Y-%m-%d')}\n"
                     f"Time: {current_dt.strftime('%I:%M %p')}\n"
-                    f"Severity: {severity['level'].upper()}\n"
-                    f"Detections: {severity['count']}\n"
-                    f"Confidence: {severity['avg_confidence']:.2f}%"
+                    f"Severity: {severity}\n"
+                    f"Confidence: {max_conf:.2f}\n"
+                    f"Detections: {detection_count}"
                 )
-                # Set the announcement text.
-                detection_status["announcement"] = "Alert triggered! Sending alert messages and initiating calls..."
-                # Call your alert functions (e.g., Telegram alert, emergency call) in a new thread.
-                Thread(target=process_alerts, args=(saved_path, message)).start()
-                # Record this incident.
-                incident_history.append({
-                    "date": current_dt.strftime("%Y-%m-%d"),
-                    "time": current_dt.strftime("%H:%M:%S"),
-                    "severity": severity["level"].upper(),
-                    "detections": severity["count"],
-                    "confidence": round(severity["avg_confidence"], 2),
-                    "alert_message": message
-                })
-
-        # Automatically clear the announcement after 3 seconds.
-        if time.time() - last_alert_time > 3:
-            detection_status["announcement"] = ""
-
-        # Overlay detection info on the frame.
-        overlay_text = (
-            f"Severity: {detection_status['level']} "
-            f"({detection_status['count']} detections) | "
-            f"Confidence: {detection_status['avg_confidence']}% | "
-            f"Last Update: {detection_status['last_update']}"
-        )
-        cv2.putText(frame, overlay_text, (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-        # If an announcement is set, display it.
-        if detection_status.get("announcement", ""):
-            cv2.putText(frame, detection_status["announcement"], (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                log_entry = f"{current_dt.strftime('%H:%M:%S')} - HIGH alert (Confidence: {max_conf:.2f}, Detections: {detection_count})"
+                with detection_status_lock:
+                    detection_status["logs"].append(log_entry)
+                    if len(detection_status["logs"]) > 10:
+                        detection_status["logs"].pop(0)
+                extra_info = {
+                    "model2": model_results.get("model2", []),
+                    "model3": model_results.get("model3", [])
+                }
+                if telegram_allowed:
+                    last_telegram_alert_time = current_time
+                if call_allowed:
+                    last_emergency_call_time = current_time
+                Thread(target=process_alerts, args=(saved_path, base_message, extra_info, call_allowed)).start()
+                with incident_history_lock:
+                    incident_history.append({
+                        "date": current_dt.strftime("%Y-%m-%d"),
+                        "time": current_dt.strftime("%H:%M:%S"),
+                        "severity": severity,
+                        "confidence": round(max_conf, 2),
+                        "detections": detection_count,
+                        "message": base_message
+                    })
+                with detection_status_lock:
+                    detection_status["alert"] = "High alert triggered: Telegram alert sent" + (", emergency call initiated." if call_allowed else ".")
+                # Reset the severity tracker after sending an alert
+                severity_tracker.detections.clear()
+        elif severity == "MILD":
+            if (current_time - last_telegram_alert_time) >= app_settings["telegram_alert_interval"]:
+                video_filename = f"violent_clip_{int(current_time)}.mp4"
+                video_path = os.path.join(app_settings["video_save_path"], video_filename)
+                saved_path = save_video_clip(frame_buffer, video_path, fps)
+                current_dt = datetime.now()
+                base_message = (
+                    f"🚨 Violent Activity Detected!\n"
+                    f"Date: {current_dt.strftime('%Y-%m-%d')}\n"
+                    f"Time: {current_dt.strftime('%I:%M %p')}\n"
+                    f"Severity: {severity}\n"
+                    f"Confidence: {max_conf:.2f}\n"
+                    f"Detections: {detection_count}"
+                )
+                log_entry = f"{current_dt.strftime('%H:%M:%S')} - MILD alert (Confidence: {max_conf:.2f}, Detections: {detection_count})"
+                with detection_status_lock:
+                    detection_status["logs"].append(log_entry)
+                    if len(detection_status["logs"]) > 10:
+                        detection_status["logs"].pop(0)
+                extra_info = {
+                    "model2": model_results.get("model2", []),
+                    "model3": model_results.get("model3", [])
+                }
+                last_telegram_alert_time = current_time
+                Thread(target=process_review_alert, args=(saved_path, base_message, extra_info)).start()
+                with incident_history_lock:
+                    incident_history.append({
+                        "date": current_dt.strftime("%Y-%m-%d"),
+                        "time": current_dt.strftime("%H:%M:%S"),
+                        "severity": severity,
+                        "confidence": round(max_conf, 2),
+                        "detections": detection_count,
+                        "message": base_message
+                    })
+                with detection_status_lock:
+                    detection_status["alert"] = "Mild alert triggered: Telegram review alert sent."
+                # Reset the severity tracker after sending an alert
+                severity_tracker.detections.clear()
+            else:
+                with detection_status_lock:
+                    detection_status["alert"] = ""
+        else:
+            with detection_status_lock:
+                detection_status["alert"] = ""
 
         ret, buffer = cv2.imencode('.jpg', frame)
         if not ret:
@@ -182,83 +214,55 @@ def detection_frame_generator():
         frame_bytes = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
     cap.release()
 
 # --------------------------------------------------
 # FastAPI Endpoints
 # --------------------------------------------------
-
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    """Main dashboard page showing the live feed, detection status, and alerts."""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    with detection_status_lock:
+        status_copy = detection_status.copy()
+    return templates.TemplateResponse("dashboard.html", {"request": request, "status": status_copy})
 
 @app.get("/video_feed")
 def video_feed():
-    """Endpoint that streams the processed webcam feed."""
-    return StreamingResponse(
-        detection_frame_generator(),
-        media_type="multipart/x-mixed-replace; boundary=frame"
-    )
+    return StreamingResponse(detection_frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.get("/status_view", response_class=HTMLResponse)
 def status_view(request: Request):
-    """Returns an HTML snippet (used by HTMX) with the current detection status."""
-    return templates.TemplateResponse("status.html", {"request": request, "status": detection_status})
+    with detection_status_lock:
+        status_copy = detection_status.copy()
+    return templates.TemplateResponse("status.html", {"request": request, "status": status_copy})
 
 @app.get("/incidents", response_class=HTMLResponse)
 def incidents(request: Request):
-    """Incident history page."""
-    return templates.TemplateResponse("incidents.html", {"request": request, "incidents": incident_history})
+    with incident_history_lock:
+        incidents_copy = incident_history.copy()
+    return templates.TemplateResponse("incidents.html", {"request": request, "incidents": incidents_copy})
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings(request: Request):
-    """Settings panel page to adjust alert thresholds, contact info, etc."""
     return templates.TemplateResponse("settings.html", {"request": request, "settings": app_settings})
-
-import re  # Import for regex validations
 
 @app.post("/update_settings")
 async def update_settings(
-    alert_threshold: int = Form(...),
-    min_confidence_threshold: float = Form(...),
-    alert_interval: int = Form(...),
-    emergency_contact: str = Form(...),
-    telegram_chat_id: str = Form(...)
+    telegram_alert_interval: int = Form(...),
+    emergency_call_interval: int = Form(...),
+    video_save_path: str = Form(...)
 ):
-    # Validate alert_threshold: must be at least 1.
-    if alert_threshold < 1:
-        return HTMLResponse("Alert threshold must be at least 1.", status_code=400)
-        
-    # Validate min_confidence_threshold: should be between 0 (exclusive) and 1 (inclusive).
-    if not (0 < min_confidence_threshold <= 1):
-        return HTMLResponse("Minimum confidence threshold must be between 0 and 1.", status_code=400)
-        
-    # Validate alert_interval: must be at least 1 second.
-    if alert_interval < 1:
-        return HTMLResponse("Alert interval must be at least 1 second.", status_code=400)
-        
-    # Validate emergency_contact: allow an optional '+' followed by 10-15 digits.
-    if not re.match(r'^\+?\d{10,15}$', emergency_contact):
-        return HTMLResponse("Emergency contact must be a valid phone number (10-15 digits, optionally with '+').", status_code=400)
-        
-    # Validate telegram_chat_id: should be numeric.
-    if not telegram_chat_id.isdigit():
-        return HTMLResponse("Telegram chat ID must be numeric.", status_code=400)
-
-    # If all validations pass, update the settings.
-    app_settings["alert_threshold"] = alert_threshold
-    app_settings["min_confidence_threshold"] = min_confidence_threshold
-    app_settings["alert_interval"] = alert_interval
-    app_settings["emergency_contact"] = emergency_contact
-    app_settings["telegram_chat_id"] = telegram_chat_id
-
-    print("Updated settings:", app_settings)
+    if telegram_alert_interval < 1 or emergency_call_interval < 1:
+        return HTMLResponse("Alert intervals must be at least 1 second.", status_code=400)
+    app_settings["telegram_alert_interval"] = telegram_alert_interval
+    app_settings["emergency_call_interval"] = emergency_call_interval
+    app_settings["video_save_path"] = video_save_path
+    os.makedirs(video_save_path, exist_ok=True)
+    logging.info("Updated settings: %s", app_settings)
     return RedirectResponse(url="/settings", status_code=302)
 
 # --------------------------------------------------
 # Running the App:
 # --------------------------------------------------
-# Run using:
-#   uvicorn main_fastapi:app --reload
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main_fastapi:app", host="0.0.0.0", port=8000, reload=True)

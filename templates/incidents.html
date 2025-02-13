@@ -7,8 +7,8 @@
       <th>Date</th>
       <th>Time</th>
       <th>Severity</th>
+      <th>Max Confidence</th>
       <th>Detections</th>
-      <th>Confidence</th>
       <th>Alert Message</th>
     </tr>
   </thead>
@@ -18,9 +18,9 @@
       <td>{{ incident.date }}</td>
       <td>{{ incident.time }}</td>
       <td>{{ incident.severity }}</td>
-      <td>{{ incident.detections }}</td>
       <td>{{ incident.confidence }}%</td>
-      <td>{{ incident.alert_message }}</td>
+      <td>{{ incident.detections }}</td>
+      <td>{{ incident.message }}</td>
     </tr>
     {% else %}
     <tr>

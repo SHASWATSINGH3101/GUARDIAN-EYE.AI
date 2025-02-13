@@ -18,4 +18,18 @@
     Check the status panel for latest alerts.
   </div>
 </section>
+<section>
+  <h2>Recent Logs</h2>
+  <div id="logs">
+    {% if status.logs %}
+      <ul>
+      {% for log in status.logs %}
+        <li>{{ log }}</li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <p>No logs available yet.</p>
+    {% endif %}
+  </div>
+</section>
 {% endblock %}

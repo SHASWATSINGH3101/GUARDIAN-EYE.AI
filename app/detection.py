@@ -1,64 +1,132 @@
+# app/detection.py
+
 import cv2
 import os
 import time
-from ultralytics import YOLO
 from datetime import datetime
-import requests
-from threading import Thread
-import numpy as np
 from collections import deque
-from typing import List, Dict
-from app.millis_call import make_emergency_call  # Import Twilio call function
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
 import re
 import requests
+from threading import Thread
+import torch
+import logging
+
+from ultralytics import YOLO
+from app.millis_call import make_emergency_call
+from app.telegram_alert import send_telegram_video
+from app.config import MODEL1_PATH, MODEL2_PATH, MODEL3_PATH
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
 # ------------------------
-# Hyperparameters / Configurations
+# Hyperparameter Settings (Centralized)
 # ------------------------
+HYPERPARAMETERS = {
+    "mild_threshold": 0.8,             # If max confidence >= 0.8, HIGH; otherwise, MILD.
+    "detection_count_threshold": 20,   # Minimum detections over the sliding window.
+    "mild_consecutive_threshold": 5    # Number of consecutive MILD events needed to escalate to HIGH.
+}
 
-# Model path
-MODEL_PATH = "X:\\VS_CODE\\_HACKATHON\\_IPYNB\\best model\\archive\\best (6).pt"
+# ------------------------
+# GPU Setup: Load models onto GPU if available
+# ------------------------
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Output directory for video clips
-OUTPUT_DIR = "X:\\VS_CODE\\_HACKATHON\\datasets\\Real Life Violence Dataset\\out"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+try:
+    model1 = YOLO(MODEL1_PATH)
+    model1.to(device)
+    logging.info("Model1 loaded successfully from %s", MODEL1_PATH)
+except Exception as e:
+    logging.error("Failed to load Model1: %s", e)
 
-# Telegram credentials
-TOKEN = ""
-CHAT_ID = ""
+try:
+    model2 = YOLO(MODEL2_PATH)
+    model2.to(device)
+    logging.info("Model2 loaded successfully from %s", MODEL2_PATH)
+except Exception as e:
+    logging.error("Failed to load Model2: %s", e)
 
-# Severity assessment configuration
-SEVERITY_WINDOW = 30  # Time window in seconds for severity assessment
-SEVERITY_THRESHOLDS = {'low': 10, 'medium': 20, 'high': 30}
+try:
+    model3 = YOLO(MODEL3_PATH)
+    model3.to(device)
+    logging.info("Model3 loaded successfully from %s", MODEL3_PATH)
+except Exception as e:
+    logging.error("Failed to load Model3: %s", e)
 
-# Video buffer configuration (seconds before and after the event)
+# ------------------------
+# BUFFER_SECONDS for video buffering
+# ------------------------
 BUFFER_SECONDS = 5
 
-# Twilio Call configuration
-CALL_INTERVAL = 5  # Interval in seconds to make a call after violence detection
+# ------------------------
+# Model Inference Functions
+# ------------------------
+def run_model1(frame):
+    """Run the primary violence detection model."""
+    results = model1(frame)
+    detections = []
+    for r in results:
+        for box in r.boxes:
+            conf = box.conf.cpu().item()
+            cls = box.cls.cpu().item()
+            # Assuming class '1' indicates violence for model1
+            if cls == 1:
+                x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+                detections.append({"confidence": conf, "box": (x1, y1, x2, y2)})
+    return detections
+
+def run_model2(frame):
+    """Run the lethal object detection model."""
+    results = model2(frame)
+    info = []
+    for r in results:
+        for box in r.boxes:
+            conf = box.conf.cpu().item()
+            cls = box.cls.cpu().item()
+            x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+            info.append({"confidence": conf, "box": (x1, y1, x2, y2), "class": cls})
+    return info
+
+def run_model3(frame):
+    """Run the violence classification model."""
+    results = model3(frame)
+    info = []
+    for r in results:
+        for box in r.boxes:
+            conf = box.conf.cpu().item()
+            cls = box.cls.cpu().item()
+            x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+            info.append({"confidence": conf, "box": (x1, y1, x2, y2), "class": cls})
+    return info
+
+def run_all_models(frame):
+    """Run all three models concurrently and return their outputs."""
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future1 = executor.submit(run_model1, frame)
+        future2 = executor.submit(run_model2, frame)
+        future3 = executor.submit(run_model3, frame)
+        result1 = future1.result()
+        result2 = future2.result()
+        result3 = future3.result()
+    return {"model1": result1, "model2": result2, "model3": result3}
 
 # ------------------------
-# Model and Helpers
+# Sliding Window Severity Tracker
 # ------------------------
-
-model = YOLO(MODEL_PATH)
-
-# Video buffer configuration
-BUFFER_SIZE = 30  # Buffer size (FPS * BUFFER_SECONDS)
-frame_buffer = deque(maxlen=BUFFER_SIZE)
-
-
 class SeverityTracker:
     def __init__(self, window_size: int):
-        self.window_size = window_size
-        self.detections = deque()
+        self.window_size = window_size  # in seconds
+        self.detections = deque()       # Each element is a tuple: (timestamp, confidence)
         self.last_cleanup_time = time.time()
         self.last_detection_time = time.time()
+        self.consecutive_mild_count = 0  # Track consecutive MILD events
 
     def add_detection(self, timestamp: float, confidence: float):
         self.detections.append((timestamp, confidence))
         self.last_detection_time = timestamp
-
         current_time = time.time()
         if current_time - self.last_cleanup_time >= 1.0:
             self._cleanup_old_detections(current_time)
@@ -70,31 +138,81 @@ class SeverityTracker:
         if current_time - self.last_detection_time > 5.0:
             self.detections.clear()
 
-    def get_severity(self) -> Dict:
+    def get_severity(self) -> dict:
         current_time = time.time()
         self._cleanup_old_detections(current_time)
-
-        if not self.detections:
-            return {'level': 'none', 'count': 0, 'avg_confidence': 0}
-
         count = len(self.detections)
-        avg_confidence = sum(conf for _, conf in self.detections) / count
-
-        if count >= SEVERITY_THRESHOLDS['high']:
-            level = 'high'
-        elif count >= SEVERITY_THRESHOLDS['medium']:
-            level = 'medium'
-        elif count >= SEVERITY_THRESHOLDS['low']:
-            level = 'low'
+        max_conf = max((conf for _, conf in self.detections), default=0.0)
+        
+        # Determine severity based on sliding window data
+        if count >= HYPERPARAMETERS["detection_count_threshold"]:
+            if max_conf >= HYPERPARAMETERS["mild_threshold"]:
+                severity = 'HIGH'
+            else:
+                severity = 'MILD'
         else:
-            level = 'none'
+            severity = 'NONE'
+        
+        # Update consecutive MILD counter and possibly escalate
+        if severity == 'HIGH':
+            self.consecutive_mild_count = 0
+        elif severity == 'MILD':
+            self.consecutive_mild_count += 1
+            if self.consecutive_mild_count >= HYPERPARAMETERS["mild_consecutive_threshold"]:
+                severity = 'HIGH'
+                self.consecutive_mild_count = 0
+        else:
+            self.consecutive_mild_count = 0
+        
+        return {'level': severity, 'count': count, 'max_confidence': max_conf}
 
-        return {'level': level, 'count': count, 'avg_confidence': avg_confidence}
+# ------------------------
+# Alert Processing Functions
+# ------------------------
+def process_alerts(saved_path, base_message, extra_info, trigger_call):
+    """
+    For HIGH severity alerts: enrich the message with extra info from model2 and model3,
+    send a Telegram alert, and initiate an emergency call if trigger_call is True.
+    """
+    extra_text = ""
+    if extra_info.get("model2"):
+        extra_text += "\nLethal Objects Detected:\n"
+        for det in extra_info["model2"]:
+            extra_text += f" - Confidence: {det['confidence']:.2f}, Box: {det['box']}\n"
+    if extra_info.get("model3"):
+        extra_text += "\nViolence Classification:\n"
+        for det in extra_info["model3"]:
+            extra_text += f" - Confidence: {det['confidence']:.2f}, Class: {det['class']}\n"
+    enriched_message = base_message + extra_text
+    metadata = send_telegram_video(saved_path, enriched_message)
+    logging.info("Extracted Metadata: %s", metadata)
+    if trigger_call and metadata:
+        Thread(target=make_emergency_call, args=(metadata,)).start()
 
+def process_review_alert(saved_path, base_message, extra_info):
+    """
+    For MILD severity alerts: send only a review Telegram alert enriched with extra info.
+    No emergency call is made.
+    """
+    extra_text = ""
+    if extra_info.get("model2"):
+        extra_text += "\nLethal Objects Detected:\n"
+        for det in extra_info["model2"]:
+            extra_text += f" - Confidence: {det['confidence']:.2f}, Box: {det['box']}\n"
+    if extra_info.get("model3"):
+        extra_text += "\nViolence Classification:\n"
+        for det in extra_info["model3"]:
+            extra_text += f" - Confidence: {det['confidence']:.2f}, Class: {det['class']}\n"
+    enriched_message = base_message + extra_text
+    send_telegram_video(saved_path, enriched_message)
 
-# Save video clip
+# ------------------------
+# Video Saving Helper
+# ------------------------
 def save_video_clip(frame_buffer: deque, output_path: str, fps: int):
+    """Save a clip from the frame buffer to the specified output path."""
     if not frame_buffer:
+        logging.warning("Frame buffer is empty, cannot save video clip.")
         return None
     frames = [frame.astype(np.uint8) for frame in frame_buffer]
     height, width = frames[0].shape[:2]
@@ -103,129 +221,9 @@ def save_video_clip(frame_buffer: deque, output_path: str, fps: int):
     for frame in frames:
         out.write(frame)
     out.release()
-    return output_path if os.path.exists(output_path) and os.path.getsize(output_path) > 0 else None
-
-
-# Send Telegram video alert
-def send_telegram_video(video_path: str, message: str):
-    metadata = extract_metadata_from_message(message)
-    try:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": message}, timeout=5).raise_for_status()
-
-        if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
-            video_url = f"https://api.telegram.org/bot{TOKEN}/sendVideo"
-            with open(video_path, "rb") as video_file:
-                files = {"video": ("video.mp4", video_file, "video/mp4")}
-                requests.post(video_url, data={"chat_id": CHAT_ID}, files=files, timeout=30).raise_for_status()
-            print("Telegram video alert sent successfully.")
-
-    except Exception as e:
-        print(f"Error sending Telegram alert: {e}")
-
-    return metadata
-
-
-# Extract metadata from message
-def extract_metadata_from_message(message: str):
-    """Extracts metadata from the Telegram alert message."""
-    metadata = {}
-
-    date_match = re.search(r"Date: ([\d-]+)", message)
-    time_match = re.search(r"Time: ([\d:]+ [APMampm]+)", message)  # Capture AM/PM
-    severity_match = re.search(r"Severity: (\w+)", message)
-    detections_match = re.search(r"Detections: (\d+)", message)
-    confidence_match = re.search(r"Confidence: ([\d.]+)%", message)
-
-    if date_match:
-        metadata["date_of_incident"] = date_match.group(1)
-    if time_match:
-        metadata["time_of_incident"] = time_match.group(1)
-    if severity_match:
-        metadata["severity_level"] = severity_match.group(1).lower()  # Convert to lowercase
-    if detections_match:
-        metadata["detections"] = int(detections_match.group(1))  # Convert to integer
-    if confidence_match:
-        metadata["confidence"] = float(confidence_match.group(1))  # Convert to float
-
-    return metadata
-
-
-
-
-# Run alerts in a separate thread to prevent blocking webcam feed
-def process_alerts(saved_path, message):
-    """Runs Telegram alert and emergency call in a separate thread."""
-    metadata = send_telegram_video(saved_path, message)
-    print("Extracted Metadata:", metadata)  # Debugging: Ensure metadata is correct
-    if metadata:
-        Thread(target=make_emergency_call, args=(metadata,)).start()
-
-
-
-# Main function
-def main():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Cannot access the webcam.")
-        return
-
-    fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
-    frame_buffer = deque(maxlen=fps * (BUFFER_SECONDS * 2))
-    severity_tracker = SeverityTracker(SEVERITY_WINDOW)
-
-    last_report_time = 0
-    try:
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                print("Error: Cannot read frame.")
-                break
-            frame_buffer.append(frame.copy())
-            results = model(frame)
-            current_time = time.time()
-            violence_detected = False
-
-            for r in results:
-                for box in r.boxes:
-                    conf = box.conf.cpu().item()
-                    cls = box.cls.cpu().item()
-                    if cls == 1 and conf > 0.70:
-                        violence_detected = True
-                        severity_tracker.add_detection(current_time, conf)
-                        x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-
-            severity = severity_tracker.get_severity()
-            if violence_detected and severity['level'] == 'high' and (current_time - last_report_time) >= CALL_INTERVAL:
-                last_report_time = current_time
-                video_path = os.path.join(OUTPUT_DIR, f"violent_clip_{int(current_time)}.mp4")
-                if saved_path := save_video_clip(frame_buffer, video_path, fps):
-                    current_time = datetime.now()
-                    current_time = datetime.now()
-                    message = (
-                        f"🚨 Violent Activity Detected!\n"
-                        f"Date: {current_time.strftime('%Y-%m-%d')}\n"
-                        f"Time: {current_time.strftime('%I:%M %p')}\n"  # 12-hour format with AM/PM
-                        f"Severity: {severity['level'].upper()}\n"
-                        f"Detections: {severity['count']}\n"
-                        f"Confidence: {severity['avg_confidence']:.2f}%"
-                    )
-
-
-                    Thread(target=process_alerts, args=(saved_path, message)).start()
-
-            cv2.putText(frame, f"Severity: {severity['level'].upper()} ({severity['count']} detections)", 
-                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-
-            cv2.imshow("Webcam Feed", frame)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-    finally:
-        cap.release()
-        cv2.destroyAllWindows()
-
-
-if __name__ == "__main__":
-    main()
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+        logging.info("Video clip saved successfully at %s", output_path)
+        return output_path
+    else:
+        logging.error("Failed to save a valid video clip at %s", output_path)
+        return None
