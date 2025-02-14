@@ -131,6 +131,14 @@ We welcome contributions! To improve Guardian-Eye.AI, please follow these steps:
 This project is licensed under the **MIT License**.
 
 ---
+@misc{GUARDIAN-EYE.AI,
+  author = {SHASWATSINGH3101, Siddharth-sahu-21, Nikhilverma-codes},
+  title = {GUARDIAN-EYE.AI},
+  year = {2025},
+  howpublished = {\url{[https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI}},
+  note = {GitHub repository},
+}
+---
 
 ## Contact
 For inquiries or support, connect via:
