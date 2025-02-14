@@ -1,0 +1,221 @@
+/* Cyberpunk 2077 Title Card Colors + Sci‑Fi Theme
+   Palette Approximation:
+   - Black: #0A0B0F
+   - Greenish: #8C9800
+   - Bright Yellow: #FFF600
+   - Bright Blue: #3AC6FF
+   - Teal: #00E6C1
+*/
+
+/* Import Orbitron for the futuristic font */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+/* Root variables for quick reference */
+:root {
+  --cp-black: #0A0B0F;
+  --cp-green: #8C9800;
+  --cp-yellow: #FFF600;
+  --cp-blue: #3AC6FF;
+  --cp-teal: #00E6C1;
+  --font-primary: 'Orbitron', sans-serif;
+}
+
+/* Base Styles */
+body {
+  font-family: var(--font-primary), sans-serif;
+  margin: 0;
+  padding: 0;
+  /* Space background with subtle star effects */
+  background: radial-gradient(ellipse at bottom, var(--cp-black) 0%, #050607 100%);
+  color: var(--cp-yellow);
+}
+
+/* Header */
+header {
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--cp-yellow);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--cp-green);
+  box-shadow: 0 0 15px 2px var(--cp-green);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.8em;
+}
+
+/* Navigation */
+nav {
+  display: flex;
+}
+
+nav a {
+  color: var(--cp-blue);
+  margin-right: 20px;
+  text-decoration: none;
+  font-weight: bold;
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+nav a::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  background: var(--cp-teal);
+  left: 0;
+  bottom: -4px;
+  transition: width 0.3s ease;
+}
+
+nav a:hover {
+  color: var(--cp-yellow);
+}
+
+nav a:hover::after {
+  width: 100%;
+}
+
+/* Main Container */
+main {
+  padding: 20px;
+}
+
+/* Sections */
+section {
+  margin-bottom: 30px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 20px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 10px 2px var(--cp-blue);
+  border: 1px solid var(--cp-green);
+}
+
+/* Centering the webcam feed */
+.webcam-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 30px;
+  position: relative;
+}
+
+/* Style the webcam feed image */
+.webcam-container img {
+  max-width: 100%;
+  border: 3px solid var(--cp-teal);
+  box-shadow: 0 0 20px 5px rgba(0, 230, 193, 0.7);
+  border-radius: 10px;
+}
+
+/* Animated scan lines overlay */
+@keyframes scan {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 100%;
+  }
+}
+
+.scan-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    transparent,
+    transparent 2px,
+    rgba(255, 246, 0, 0.1) 2px,
+    rgba(255, 246, 0, 0.1) 3px
+  );
+  pointer-events: none;
+  animation: scan 3s linear infinite;
+}
+
+/* Status text above webcam feed */
+.feed-status {
+  text-align: left;
+  font-size: 1.2em;
+  margin-bottom: 10px;
+  color: var(--cp-green);
+}
+
+/* Form Elements */
+input,
+button,
+select,
+textarea {
+  font-family: var(--font-primary), sans-serif;
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--cp-yellow);
+  border: 1px solid var(--cp-blue);
+  padding: 10px;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+}
+
+input:focus,
+button:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 10px var(--cp-teal);
+}
+
+button:hover {
+  background: var(--cp-yellow);
+  color: var(--cp-black);
+}
+
+/* Responsive Design for Header & Navigation */
+@media (max-width: 768px) {
+  header {
+    flex-direction: column;
+    text-align: center;
+  }
+  nav {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  nav a {
+    margin: 5px 10px;
+  }
+}
+
+/* Dashboard Columns Layout */
+.dashboard-container {
+  display: flex;
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.dashboard-left,
+.dashboard-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Ensure the center column (webcam feed) is not squished */
+.dashboard-center {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 640px; /* Matches the webcam feed width */
+}
+
+/* For smaller screens, stack columns vertically */
+@media (max-width: 768px) {
+  .dashboard-container {
+    flex-direction: column;
+  }
+}

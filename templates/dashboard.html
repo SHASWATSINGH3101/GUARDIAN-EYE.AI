@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard-container">
+  
+  <!-- Left Column -->
+  <div class="dashboard-left">
+    <section>
+      <h2>Violence Detection Status</h2>
+      <!-- This div is updated every 5 seconds using HTMX -->
+      <div id="status-panel" hx-get="/status_view" hx-trigger="load, every 5s">
+        Loading status...
+      </div>
+    </section>
+    <section>
+      <h2>Alerts & Notifications</h2>
+      <div id="alerts-panel">
+        <!-- Alerts (if any) appear as part of the detection status overlay -->
+        Check the status panel for latest alerts.
+      </div>
+    </section>
+  </div>
+  
+  <!-- Center Column -->
+  <div class="dashboard-center">
+    <section>
+      <h2>Live Webcam Feed</h2>
+      <!-- Status text placed above the webcam feed box -->
+      <p class="feed-status">STATUS: ACTIVE</p>
+      <div class="webcam-container">
+        <img src="/video_feed" alt="Live Webcam Feed" width="640" height="480">
+        <!-- Animated scan lines overlay -->
+        <div class="scan-lines"></div>
+      </div>
+    </section>
+  </div>
+  
+  <!-- Right Column -->
+  <div class="dashboard-right">
+    <section>
+      <h2>Recent Logs</h2>
+      <div id="logs">
+        {% if status.logs %}
+          <ul>
+          {% for log in status.logs %}
+            <li>{{ log }}</li>
+          {% endfor %}
+          </ul>
+        {% else %}
+          <p>No logs available yet.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+</div>
+{% endblock %}
