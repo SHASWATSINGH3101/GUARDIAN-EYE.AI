@@ -8,10 +8,12 @@ from collections import deque
 from threading import Thread, Lock
 import logging
 
+
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from starlette.staticfiles import StaticFiles
 
 from app.detection import (
     run_all_models,
@@ -51,6 +53,9 @@ last_telegram_alert_time = 0
 last_emergency_call_time = 0
 
 os.makedirs(app_settings["video_save_path"], exist_ok=True)
+
+from fastapi import FastAPI
+from starlette.staticfiles import StaticFiles
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -230,10 +235,13 @@ def video_feed():
     return StreamingResponse(detection_frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.get("/status_view", response_class=HTMLResponse)
-def status_view(request: Request):
+async def status_view(request: Request):
     with detection_status_lock:
         status_copy = detection_status.copy()
-    return templates.TemplateResponse("status.html", {"request": request, "status": status_copy})
+    response = templates.TemplateResponse("status.html", {"request": request, "status": status_copy})
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+
 
 @app.get("/incidents", response_class=HTMLResponse)
 def incidents(request: Request):

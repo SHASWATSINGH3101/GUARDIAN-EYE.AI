@@ -9,4 +9,3 @@ twilio
 aiohttp
 python-dotenv
 pydantic
-python-multipart
