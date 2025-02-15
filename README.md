@@ -55,7 +55,7 @@ pip install -r requirements.txt
 ```
 
 ### 4️⃣ Set Up Environment Variables
-To avoid exposing sensitive credentials, create a \`.env\` file and add:
+Add custom api keys and emergency numbers:
 ```ini
 TWILIO_ACCOUNT_SID=your_account_sid
 TWILIO_AUTH_TOKEN=your_auth_token
