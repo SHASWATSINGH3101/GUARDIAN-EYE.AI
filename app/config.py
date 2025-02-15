@@ -9,8 +9,8 @@ TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "+15674122275")
 EMERGENCY_PHONE_NUMBER = os.environ.get("EMERGENCY_PHONE_NUMBER", "Add yours")
 
 # Telegram Configuration - Set these securely in your environment.
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "7875405991:AAGfgB6i1PJWPSBnAZ8VM--mEQ4atM4pRFA")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "1284776332")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "Add yours")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "Add yours")
 
 # Flask Server Configuration (if applicable)
 FLASK_PORT = int(os.environ.get("FLASK_PORT", 5000))
