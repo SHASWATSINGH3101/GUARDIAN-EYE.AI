@@ -102,7 +102,7 @@ Sign up for an account at Millis AI and obtain your:
   FROM_PHONE_NUMBER 
   TO_PHONE_NUMBER 
   ```
-Update your configuration file (e.g., in app/config.py) with your personal credentials:
+Update your  `app/config.py` with your personal credentials:
 
 ```python 
 TWILIO_ACCOUNT_SID = "your_account_sid_here"
