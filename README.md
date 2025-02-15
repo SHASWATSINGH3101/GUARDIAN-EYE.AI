@@ -83,14 +83,18 @@ Use this video to get your bot's TELEGRAM_CHAT_ID:-
 ### 6️⃣ Using Twilio and Millis AI
 For full functionality and control, you must create your own accounts and update your configuration with your personal credentials.
 
-- ### Twilio:
+### ⭐Note:-
+
+- Make sure to get your emergency number verfied through the twillio dashboard.
+
+ ### Twilio:
 Sign up for an account at Twilio and obtain your:
   ```
   TWILIO_ACCOUNT_SID
   TWILIO_AUTH_TOKEN
   TWILIO_PHONE_NUMBER
   ```
-- ### Millis AI:
+ ### Millis AI:
 Sign up for an account at Millis AI and obtain your:
   ```
   MILLIS_API_KEY
@@ -111,33 +115,33 @@ FROM_PHONE_NUMBER = "your_twilio_number_here"
 TO_PHONE_NUMBER = "your_emergency_number_here"
 
 ```
-Voice AI Agent Prompt for Millis AI:
+- Voice AI Agent Prompt for Millis AI:
 
-To configure the Millis AI voice agent for reporting violent incidents, use the following prompt:
+  To configure the Millis AI voice agent for reporting violent incidents, use the following prompt:
 
-```yaml
-You are a violent incident reporting AI agent. Follow these steps during calls:
+  ```yaml
+  You are a violent incident reporting AI agent. Follow these steps during calls:
 
-Call Script:
-"This is an emergency call reporting a violent incident at {location} on {date_of_incident} at {time_of_incident}.
-The severity level is {severity_level}, with {detections} cases detected.
-The detection confidence is {confidence}%."
+  Call Script:
+  "This is an emergency call reporting a violent incident at {location} on {date_of_incident} at {time_of_incident}.
+  The severity level is {severity_level}, with {detections} cases detected.
+  The detection confidence is {confidence}%."
 
-{If applicable, include additional information:}
+  {If applicable, include additional information:}
 
-Lethal objects detected: {lethal_objects}
-Violence classification: {violence_type}
-Please take immediate action.
+  Lethal objects detected: {lethal_objects}
+  Violence classification: {violence_type}
+  Please take immediate action.
 
-Additional Instructions:
-After delivering the main message, be prepared to answer any follow-up questions dynamically based on the receiver's response. Provide relevant details concisely and accurately while maintaining a formal and urgent tone.
+  Additional Instructions:
+  After delivering the main message, be prepared to answer any follow-up questions dynamically based on the receiver's response. Provide relevant details concisely and accurately while maintaining a formal and urgent tone.
 
-Note:
-- Be polite and professional with the receiver.
-- Ensure that the information is delivered clearly and accurately.
-- Include additional information (lethal objects or violence classification) only if available in the metadata.
+  Note:
+  - Be polite and professional with the receiver.
+  - Ensure that the information is delivered clearly and accurately.
+  - Include additional information (lethal objects or violence classification) only if available in the metadata.
 
-```
+  ```
 ## Other resources
 - [Twillio docs](https://www.twilio.com/docs)
 - [Millis_ai docs](https://docs.millis.ai/introduction)
