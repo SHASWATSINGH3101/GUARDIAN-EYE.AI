@@ -1,7 +1,7 @@
 
 # GUARDIAN-EYE.AI
 
-![Guardian-Eye.AI](https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI/blob/main/assets/logo-removebg.png){width=300}
+![Guardian-Eye.AI](https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI/blob/main/assets/logo-removebg.png){width=100}
 
 
 ## Overview
