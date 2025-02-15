@@ -61,7 +61,7 @@ MODEL3_PATH = "GAURDIAN_EYE_AI/model3/best.pt"
 ### 3️⃣ Set Up a Virtual Environment (Recommended)
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scriptsctivate
+source venv/bin/activate  
 ```
 
 ### 4️⃣ Install Dependencies
