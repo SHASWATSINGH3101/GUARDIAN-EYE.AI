@@ -51,7 +51,7 @@ Models are hosted on Hugging Face. To download them:
 git lfs install
 git clone https://huggingface.co/SHASWATSINGH3101/GAURDIAN_EYE_AI
 ```
-After cloning, update the model paths in your configuration:
+After cloning, update the model paths in your `app/config.py`:
 ```python
 MODEL1_PATH = "GAURDIAN_EYE_AI/model1/best.pt"
 MODEL2_PATH = "GAURDIAN_EYE_AI/model2/best.pt"
