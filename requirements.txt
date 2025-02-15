@@ -10,3 +10,4 @@ aiohttp
 python-dotenv
 pydantic
 python-multipart
+python-telegram-bot
