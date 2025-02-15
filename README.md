@@ -77,14 +77,70 @@ pip install -r requirements.txt
     TELEGRAM_BOT_TOKEN = "your_bot_token_here"
     TELEGRAM_CHAT_ID = "your_chat_id_here"
     ```
+Use this video to get your bot's TELEGRAM_CHAT_ID:- 
+[Chat ID Tutorial](https://youtu.be/l5YDtSLGhqk?si=5C7r3xK4WJFJNBx3)
 
 ### 6️⃣ Using Twilio and Millis AI
-This project comes with trial account credentials for **Twilio** and **Millis AI** to get you started quickly. These keys are included in the configuration but are limited to trial credits.
+For full functionality and control, you must create your own accounts and update your configuration with your personal credentials.
 
-### ⚠️ **Note:**
-These are trial account credentials with limited credits. For more control or if the trial credits expire, create your own accounts:
-- [Twilio Account Setup](https://www.twilio.com/try-twilio)
-- [Millis AI Account Setup](https://www.millis.ai/)
+- ### Twilio:
+Sign up for an account at Twilio and obtain your:
+  ```
+  TWILIO_ACCOUNT_SID
+  TWILIO_AUTH_TOKEN
+  TWILIO_PHONE_NUMBER
+  ```
+- ### Millis AI:
+Sign up for an account at Millis AI and obtain your:
+  ```
+  MILLIS_API_KEY
+  MILLIS_AGENT_ID 
+  FROM_PHONE_NUMBER 
+  TO_PHONE_NUMBER 
+  ```
+Update your configuration file (e.g., in app/config.py) with your personal credentials:
+
+```python 
+TWILIO_ACCOUNT_SID = "your_account_sid_here"
+TWILIO_AUTH_TOKEN = "your_auth_token_here"
+TWILIO_PHONE_NUMBER = "your_twilio_number_here"
+
+MILLIS_API_KEY = "your_millis_api_key_here"
+MILLIS_AGENT_ID = "your_agent_id_here"
+FROM_PHONE_NUMBER = "your_twilio_number_here"
+TO_PHONE_NUMBER = "your_emergency_number_here"
+
+```
+Voice AI Agent Prompt for Millis AI:
+
+To configure the Millis AI voice agent for reporting violent incidents, use the following prompt:
+
+```yaml
+You are a violent incident reporting AI agent. Follow these steps during calls:
+
+Call Script:
+"This is an emergency call reporting a violent incident at {location} on {date_of_incident} at {time_of_incident}.
+The severity level is {severity_level}, with {detections} cases detected.
+The detection confidence is {confidence}%."
+
+{If applicable, include additional information:}
+
+Lethal objects detected: {lethal_objects}
+Violence classification: {violence_type}
+Please take immediate action.
+
+Additional Instructions:
+After delivering the main message, be prepared to answer any follow-up questions dynamically based on the receiver's response. Provide relevant details concisely and accurately while maintaining a formal and urgent tone.
+
+Note:
+- Be polite and professional with the receiver.
+- Ensure that the information is delivered clearly and accurately.
+- Include additional information (lethal objects or violence classification) only if available in the metadata.
+
+```
+## Other resources
+- [Twillio docs](https://www.twilio.com/docs)
+- [Millis_ai docs](https://docs.millis.ai/introduction)
 
 ### 7️⃣ Run the Application
 ```bash
