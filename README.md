@@ -1,5 +1,5 @@
 
-<img src="https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI/blob/main/assets/logo-modified.png" alt="Guardian-Eye.AI" width="550">
+<img src="https://github.com/SHASWATSINGH3101/GUARDIAN-EYE.AI/blob/main/assets/logo-modified.png" alt="Guardian-Eye.AI" width="350">
 
 ## Overview
 **Guardian-Eye.AI** is an AI-powered surveillance system designed to enhance public safety by detecting violent activities in real-time. Using **computer vision and deep learning**, this system integrates with existing surveillance infrastructure to identify threats, send alerts, and enable **rapid response** to critical incidents.
