@@ -4,6 +4,15 @@
 ## Overview
 **Guardian-Eye.AI** is an AI-powered surveillance system designed to enhance public safety by detecting violent activities in real-time. Using **computer vision and deep learning**, this system integrates with existing surveillance infrastructure to identify threats, send alerts, and enable **rapid response** to critical incidents.
 
+
+## Demo Video  
+📺 **Watch Guardian-Eye.AI in action:**  
+<a href="https://www.youtube.com/watch?v=ZbCf8oA1HCg">
+    <img src="https://img.youtube.com/vi/ZbCf8oA1HCg/maxresdefault.jpg" width="600">
+</a>
+
+
+
 ## Key Features
 - ✅ **Real-Time Violence Detection** – Utilizes **YOLO (You Only Look Once)** for high-speed and accurate detection.
 - ✅ **FastAPI-Powered Backend** – Provides a **lightweight, efficient API** for both web and mobile integration.
