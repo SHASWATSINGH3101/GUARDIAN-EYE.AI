@@ -8,7 +8,7 @@
 ## Demo Video  
 📺 **Watch Guardian-Eye.AI in action:**  
 <a href="https://www.youtube.com/watch?v=ZbCf8oA1HCg">
-    <img src="https://img.youtube.com/vi/ZbCf8oA1HCg/maxresdefault.jpg" width="600">
+    <img src="https://img.youtube.com/vi/ZbCf8oA1HCg/maxresdefault.jpg" width="300">
 </a>
 
 
